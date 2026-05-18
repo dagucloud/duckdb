@@ -1,0 +1,33 @@
+apiVersion: v1alpha1
+name: duckdb
+dag: workflow.yaml
+inputs:
+  type: object
+  additionalProperties: false
+  required: [query]
+  properties:
+    query:
+      type: string
+      minLength: 1
+      description: SQL passed to duckdb -c.
+    database:
+      type: string
+      description: Optional DuckDB database file path. Omit for a transient in-memory database.
+    workdir:
+      type: string
+      description: Optional directory to cd into before running DuckDB.
+    format:
+      type: string
+      enum: [json, csv, table, markdown, line, list, column]
+      description: DuckDB CLI output format.
+    readonly:
+      type: boolean
+      description: Open the database in read-only mode.
+outputs:
+  type: object
+  additionalProperties: false
+  required: [result]
+  properties:
+    result:
+      type: string
+      description: Raw DuckDB stdout in the selected format.

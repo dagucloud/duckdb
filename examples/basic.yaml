@@ -1,0 +1,12 @@
+type: graph
+
+steps:
+  - id: query
+    action: duckdb@v1
+    with:
+      query: |
+        SELECT 42 AS answer, 'duckdb' AS engine;
+
+  - id: print_result
+    depends: [query]
+    run: printf '%s\n' '${query.outputs.result}'

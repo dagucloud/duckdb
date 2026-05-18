@@ -1,0 +1,38 @@
+type: graph
+
+tools:
+  - duckdb/duckdb@v1.5.2
+
+params:
+  type: object
+  additionalProperties: false
+  required: [query]
+  properties:
+    query:
+      type: string
+      minLength: 1
+      description: SQL passed to duckdb -c.
+    database:
+      type: string
+      default: ""
+      description: Optional DuckDB database file path.
+    workdir:
+      type: string
+      default: ""
+      description: Optional directory to cd into before running DuckDB.
+    format:
+      type: string
+      enum: [json, csv, table, markdown, line, list, column]
+      default: json
+      description: DuckDB CLI output format.
+    readonly:
+      type: boolean
+      default: false
+      description: Open the database in read-only mode.
+
+steps:
+  - id: query
+    run: ./scripts/duckdb.sh
+    stdout:
+      outputs:
+        field: result
