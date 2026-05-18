@@ -137,6 +137,94 @@ steps:
 Keep write operations ordered with `depends`. Parallel writes to the same DuckDB
 file can conflict because DuckDB uses file-level locking semantics.
 
+## Artifacts and Large Results
+
+The `result` output is for small values that need to flow through Dagu variables:
+counts, IDs, status rows, or compact JSON. Do not use `${step.outputs.result}`
+as a transport for large rowsets.
+
+When the query result itself should be kept with the DAG run, stream DuckDB
+stdout directly to a run artifact:
+
+```yaml
+type: graph
+
+tools:
+  - duckdb/duckdb@v1.5.2
+
+steps:
+  - id: export_rows
+    run: |
+      duckdb -batch -bail -no-stdin -csv /data/source.duckdb \
+        -c "SELECT id, name, score FROM source_table WHERE score >= 80"
+    stdout:
+      artifact: exports/selected_rows.csv
+```
+
+This keeps the CSV out of Dagu output variables while making it available in the
+run's Artifacts tab.
+
+You can then load that artifact file in a later DuckDB step when the artifact
+directory is readable by that step:
+
+```yaml
+type: graph
+
+tools:
+  - duckdb/duckdb@v1.5.2
+
+steps:
+  - id: export_rows
+    run: |
+      duckdb -batch -bail -no-stdin -csv /data/source.duckdb \
+        -c "SELECT id, name, score FROM source_table WHERE score >= 80"
+    stdout:
+      artifact: exports/selected_rows.csv
+
+  - id: insert_rows
+    depends: [export_rows]
+    action: duckdb@v1
+    with:
+      database: /data/target.duckdb
+      query: |
+        INSERT INTO target_table
+        SELECT *
+        FROM read_csv_auto('${DAG_RUN_ARTIFACTS_DIR}/exports/selected_rows.csv');
+```
+
+For large or typed datasets, prefer writing Parquet from SQL:
+
+```yaml
+steps:
+  - id: export_parquet
+    action: duckdb@v1
+    with:
+      database: /data/source.duckdb
+      query: |
+        COPY (
+          SELECT id, name, score
+          FROM source_table
+          WHERE score >= 80
+        )
+        TO '${DAG_RUN_ARTIFACTS_DIR}/exports/selected_rows.parquet'
+        (FORMAT parquet);
+
+  - id: insert_parquet
+    depends: [export_parquet]
+    action: duckdb@v1
+    with:
+      database: /data/target.duckdb
+      query: |
+        INSERT INTO target_table
+        SELECT *
+        FROM read_parquet('${DAG_RUN_ARTIFACTS_DIR}/exports/selected_rows.parquet');
+```
+
+In distributed shared-nothing mode, an artifact path may be worker-local while
+the run is still executing. For cross-worker data handoff, use a shared mounted
+path, object storage, or keep the operation inside one DuckDB statement with
+`ATTACH` / `INSERT INTO ... SELECT`.
+
 ## Inputs
 
 | Name | Type | Required | Default | Description |
